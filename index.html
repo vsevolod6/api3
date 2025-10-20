@@ -42,7 +42,7 @@
             text-align: center;
             margin-bottom: 30px;
             padding: 20px;
-            background-color: rgba(255, 255, 255, 0.9);
+            background-color: rgba(255, 255, 255, 0.95);
             border-radius: var(--border-radius);
             box-shadow: var(--box-shadow);
         }
@@ -70,7 +70,7 @@
         }
 
         .card {
-            background-color: rgba(255, 255, 255, 0.9);
+            background-color: rgba(255, 255, 255, 0.95);
             border-radius: var(--border-radius);
             padding: 20px;
             box-shadow: var(--box-shadow);
@@ -276,13 +276,28 @@
             color: #777;
             margin-top: 5px;
         }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>API, WebSockets и Server-Sent Events</h1>
-            <p class="app-description">Демонстрация работы с Fake API, WebSockets и Server-Sent Events</p>
+            <p class="app-description">Рабочая демонстрация взаимодействия с различными API и технологиями реального времени</p>
         </header>
 
         <div class="main-content">
@@ -291,9 +306,15 @@
                 <h2>Fake API и Fetch API</h2>
                 
                 <div class="controls">
-                    <button id="loadUsers" class="btn">Загрузить пользователей</button>
-                    <button id="loadPosts" class="btn">Загрузить посты</button>
-                    <button id="loadComments" class="btn">Загрузить комментарии</button>
+                    <button id="loadUsers" class="btn">
+                        <span class="btn-text">Загрузить пользователей</span>
+                    </button>
+                    <button id="loadPosts" class="btn">
+                        <span class="btn-text">Загрузить посты</span>
+                    </button>
+                    <button id="loadComments" class="btn">
+                        <span class="btn-text">Загрузить комментарии</span>
+                    </button>
                     <button id="clearData" class="btn btn-danger">Очистить</button>
                 </div>
                 
@@ -310,7 +331,7 @@
             <div class="card">
                 <h2>WebSockets Чат</h2>
                 
-                <div class="status" id="wsStatus">
+                <div class="status disconnected" id="wsStatus">
                     WebSocket не подключен
                 </div>
                 
@@ -320,14 +341,14 @@
                     </div>
                     
                     <div class="chat-input">
-                        <input type="text" id="messageInput" placeholder="Введите сообщение...">
-                        <button id="sendMessage" class="btn">Отправить</button>
+                        <input type="text" id="messageInput" placeholder="Введите сообщение..." disabled>
+                        <button id="sendMessage" class="btn" disabled>Отправить</button>
                     </div>
                 </div>
                 
                 <div class="controls">
                     <button id="connectWs" class="btn btn-success">Подключиться</button>
-                    <button id="disconnectWs" class="btn btn-danger">Отключиться</button>
+                    <button id="disconnectWs" class="btn btn-danger" disabled>Отключиться</button>
                     <button id="clearChat" class="btn">Очистить чат</button>
                 </div>
             </div>
@@ -336,7 +357,7 @@
             <div class="card">
                 <h2>Server-Sent Events</h2>
                 
-                <div class="status" id="sseStatus">
+                <div class="status disconnected" id="sseStatus">
                     Server-Sent Events не подключены
                 </div>
                 
@@ -346,7 +367,7 @@
                 
                 <div class="controls">
                     <button id="connectSse" class="btn btn-success">Подключить SSE</button>
-                    <button id="disconnectSse" class="btn btn-danger">Отключить SSE</button>
+                    <button id="disconnectSse" class="btn btn-danger" disabled>Отключить SSE</button>
                     <button id="clearSse" class="btn">Очистить</button>
                 </div>
             </div>
@@ -420,8 +441,8 @@
         function updateConnectionInfo() {
             const connections = [];
             
-            if (wsConnected) connections.push('WebSocket');
-            if (sseConnected) connections.push('Server-Sent Events');
+            if (window.wsConnected) connections.push('WebSocket');
+            if (window.sseConnected) connections.push('Server-Sent Events');
             
             connectionInfo.textContent = connections.length > 0 
                 ? connections.join(', ') 
@@ -433,6 +454,34 @@
             wsMessageCount.textContent = stats.wsMessages;
             sseEventCount.textContent = stats.sseEvents;
             apiRecordCount.textContent = stats.apiRecords;
+        }
+        
+        // Функция для управления состоянием кнопок
+        function setButtonState(buttonId, enabled, text = null) {
+            const button = document.getElementById(buttonId);
+            const btnText = button.querySelector('.btn-text') || button;
+            
+            button.disabled = !enabled;
+            
+            if (text) {
+                btnText.textContent = text;
+            }
+            
+            // Убираем индикатор загрузки если есть
+            const loading = button.querySelector('.loading');
+            if (loading) {
+                loading.remove();
+            }
+        }
+        
+        // Функция для добавления индикатора загрузки на кнопку
+        function addLoadingToButton(buttonId) {
+            const button = document.getElementById(buttonId);
+            const btnText = button.querySelector('.btn-text') || button;
+            
+            const loading = document.createElement('span');
+            loading.className = 'loading';
+            button.insertBefore(loading, btnText);
         }
         
         // Сброс статистики
@@ -459,8 +508,11 @@
         const API_BASE_URL = 'https://jsonplaceholder.typicode.com';
         
         // Функция для загрузки данных с API
-        async function fetchData(endpoint) {
+        async function fetchData(endpoint, buttonId) {
             try {
+                setButtonState(buttonId, false, 'Загрузка...');
+                addLoadingToButton(buttonId);
+                
                 apiStatus.textContent = 'Загрузка данных...';
                 apiStatus.className = 'status connecting';
                 
@@ -475,12 +527,25 @@
                 apiStatus.textContent = 'Данные успешно загружены';
                 apiStatus.className = 'status connected';
                 
+                setButtonState(buttonId, true, getButtonOriginalText(buttonId));
+                
                 return data;
             } catch (error) {
                 apiStatus.textContent = `Ошибка загрузки: ${error.message}`;
                 apiStatus.className = 'status disconnected';
+                setButtonState(buttonId, true, getButtonOriginalText(buttonId));
                 throw error;
             }
+        }
+        
+        // Функция для получения оригинального текста кнопки
+        function getButtonOriginalText(buttonId) {
+            const texts = {
+                'loadUsers': 'Загрузить пользователей',
+                'loadPosts': 'Загрузить посты', 
+                'loadComments': 'Загрузить комментарии'
+            };
+            return texts[buttonId] || 'Загрузить';
         }
         
         // Функция для отображения данных
@@ -493,7 +558,7 @@
             let html = '';
             
             // Ограничиваем количество отображаемых элементов для производительности
-            const displayData = data.slice(0, 10);
+            const displayData = data.slice(0, 8);
             
             displayData.forEach(item => {
                 if (type === 'users') {
@@ -502,63 +567,70 @@
                             <h3>${item.name}</h3>
                             <p><strong>Email:</strong> ${item.email}</p>
                             <p><strong>Телефон:</strong> ${item.phone}</p>
-                            <p><strong>Вебсайт:</strong> ${item.website}</p>
-                            <p><strong>Компания:</strong> ${item.company.name}</p>
+                            <p><strong>Город:</strong> ${item.address.city}</p>
                         </div>
                     `;
                 } else if (type === 'posts') {
+                    // Обрезаем длинный текст
+                    const shortBody = item.body.length > 100 
+                        ? item.body.substring(0, 100) + '...' 
+                        : item.body;
+                        
                     html += `
                         <div class="data-item">
                             <h3>${item.title}</h3>
-                            <p>${item.body}</p>
+                            <p>${shortBody}</p>
                             <p><strong>Автор ID:</strong> ${item.userId}</p>
                         </div>
                     `;
                 } else if (type === 'comments') {
+                    const shortBody = item.body.length > 80 
+                        ? item.body.substring(0, 80) + '...' 
+                        : item.body;
+                        
                     html += `
                         <div class="data-item">
                             <h3>${item.name}</h3>
                             <p><strong>Email:</strong> ${item.email}</p>
-                            <p>${item.body}</p>
-                            <p><strong>Пост ID:</strong> ${item.postId}</p>
+                            <p>${shortBody}</p>
                         </div>
                     `;
                 }
             });
             
             apiData.innerHTML = html;
-            stats.apiRecords = displayData.length;
+            stats.apiRecords = data.length;
             updateStats();
         }
         
         // Обработчики событий для кнопок API
         loadUsersBtn.addEventListener('click', async () => {
             try {
-                const users = await fetchData('/users');
+                const users = await fetchData('/users', 'loadUsers');
                 displayData(users, 'users');
-                showNotification('Пользователи успешно загружены');
+                showNotification(`Загружено ${users.length} пользователей`);
             } catch (error) {
-                showNotification('Ошибка загрузки пользователей', true);
+                showNotification('Ошибка загрузки пользователей: ' + error.message, true);
             }
         });
         
         loadPostsBtn.addEventListener('click', async () => {
             try {
-                const posts = await fetchData('/posts');
+                const posts = await fetchData('/posts', 'loadPosts');
                 displayData(posts, 'posts');
-                showNotification('Посты успешно загружены');
+                showNotification(`Загружено ${posts.length} постов`);
             } catch (error) {
-                showNotification('Ошибка загрузки постов', true);
+                showNotification('Ошибка загрузки постов: ' + error.message, true);
             }
         });
         
         loadCommentsBtn.addEventListener('click', async () => {
             try {
-                const comments = await fetchData('/comments');
+                const comments = await fetchData('/comments', 'loadComments');
                 displayData(comments, 'comments');
-                showNotification('Комментарии успешно загружены');
+                showNotification(`Загружено ${comments.length} комментариев`);
             } catch (error) {
-                showNotification('Ошибка загрузки комментариев', true);
+                showNotification('Ошибка загрузки комментариев: ' + error.message, true);
             }
         });
         
@@ -580,22 +652,31 @@
         const sendMessageBtn = document.getElementById('sendMessage');
         
         let ws = null;
-        let wsConnected = false;
+        window.wsConnected = false;
         let username = `User${Math.floor(Math.random() * 1000)}`;
+        let messageCounter = 0;
         
         // Функция для подключения к WebSocket
         function connectWebSocket() {
             try {
+                setButtonState('connectWs', false, 'Подключение...');
+                
                 // Используем публичный WebSocket сервер для демонстрации
-                ws = new WebSocket('wss://echo.websocket.org');
+                ws = new WebSocket('wss://ws.postman-echo.com/raw');
                 
                 wsStatus.textContent = 'Подключение к WebSocket...';
                 wsStatus.className = 'status connecting';
                 
                 ws.onopen = () => {
-                    wsConnected = true;
+                    window.wsConnected = true;
                     wsStatus.textContent = 'WebSocket подключен';
                     wsStatus.className = 'status connected';
+                    
+                    setButtonState('connectWs', false);
+                    setButtonState('disconnectWs', true);
+                    setButtonState('sendMessage', true);
+                    messageInput.disabled = false;
+                    
                     updateConnectionInfo();
                     showNotification('WebSocket подключен');
                     
@@ -607,29 +688,39 @@
                     stats.wsMessages++;
                     updateStats();
                     
-                    // Имитируем получение сообщения от другого пользователя
-                    if (event.data !== messageInput.value) {
-                        addMessage('other', event.data);
-                    }
+                    // Добавляем небольшую задержку для реалистичности
+                    setTimeout(() => {
+                        // Имитируем получение сообщения от другого пользователя
+                        if (event.data !== `msg_${messageCounter}`) {
+                            addMessage('other', event.data, 'Сервер');
+                        }
+                    }, 500);
                 };
                 
                 ws.onclose = () => {
-                    wsConnected = false;
+                    window.wsConnected = false;
                     wsStatus.textContent = 'WebSocket отключен';
                     wsStatus.className = 'status disconnected';
+                    
+                    setButtonState('connectWs', true, 'Подключиться');
+                    setButtonState('disconnectWs', false);
+                    setButtonState('sendMessage', false);
+                    messageInput.disabled = true;
+                    
                     updateConnectionInfo();
-                    showNotification('WebSocket отключен', true);
                 };
                 
                 ws.onerror = (error) => {
                     wsStatus.textContent = 'Ошибка WebSocket';
                     wsStatus.className = 'status disconnected';
+                    setButtonState('connectWs', true, 'Подключиться');
                     showNotification('Ошибка WebSocket соединения', true);
                 };
                 
             } catch (error) {
                 wsStatus.textContent = 'Ошибка подключения';
                 wsStatus.className = 'status disconnected';
+                setButtonState('connectWs', true, 'Подключиться');
                 showNotification('Не удалось подключиться к WebSocket', true);
             }
         }
@@ -640,10 +731,21 @@
                 ws.close();
                 ws = null;
             }
+            window.wsConnected = false;
+            wsStatus.textContent = 'WebSocket отключен';
+            wsStatus.className = 'status disconnected';
+            
+            setButtonState('connectWs', true, 'Подключиться');
+            setButtonState('disconnectWs', false);
+            setButtonState('sendMessage', false);
+            messageInput.disabled = true;
+            
+            updateConnectionInfo();
+            showNotification('WebSocket отключен');
         }
         
         // Функция для добавления сообщения в чат
-        function addMessage(type, text) {
+        function addMessage(type, text, sender = null) {
             if (chatMessages.querySelector('.empty-message')) {
                 chatMessages.innerHTML = '';
             }
@@ -658,10 +760,11 @@
                 messageDiv.style.textAlign = 'center';
                 messageDiv.style.backgroundColor = 'transparent';
                 messageDiv.style.color = '#777';
+                messageDiv.style.fontStyle = 'italic';
             } else {
-                const sender = type === 'own' ? username : 'Другой пользователь';
+                const displaySender = sender || (type === 'own' ? username : 'Сервер');
                 messageDiv.innerHTML = `
-                    <strong>${sender}:</strong> ${text}
+                    <strong>${displaySender}:</strong> ${text}
                     <div class="timestamp">${timestamp}</div>
                 `;
             }
@@ -675,8 +778,11 @@
             const message = messageInput.value.trim();
             if (!message) return;
             
-            if (ws && wsConnected) {
-                ws.send(message);
+            if (ws && window.wsConnected) {
+                messageCounter++;
+                const messageToSend = `msg_${messageCounter}: ${message}`;
+                
+                ws.send(messageToSend);
                 addMessage('own', message);
                 messageInput.value = '';
             } else {
@@ -708,123 +814,91 @@
         const sseData = document.getElementById('sseData');
         
         let sse = null;
-        let sseConnected = false;
+        window.sseConnected = false;
+        let sseInterval = null;
         
         // Функция для подключения к Server-Sent Events
         function connectSSE() {
             try {
-                // Используем демонстрационный SSE эндпоинт
+                setButtonState('connectSse', false, 'Подключение...');
+                
                 // В реальном приложении здесь должен быть ваш серверный эндпоинт
-                sse = new EventSource('https://sse.example.com/events');
+                // Для демонстрации используем имитацию, так как публичный SSE сервер может быть недоступен
                 
                 sseStatus.textContent = 'Подключение к SSE...';
                 sseStatus.className = 'status connecting';
                 
-                sse.onopen = () => {
-                    sseConnected = true;
-                    sseStatus.textContent = 'SSE подключены';
+                // Имитируем подключение к SSE
+                setTimeout(() => {
+                    window.sseConnected = true;
+                    sseStatus.textContent = 'SSE подключены (имитация)';
                     sseStatus.className = 'status connected';
+                    
+                    setButtonState('connectSse', false);
+                    setButtonState('disconnectSse', true);
+                    
                     updateConnectionInfo();
-                    showNotification('Server-Sent Events подключены');
+                    showNotification('Server-Sent Events подключены (имитация)');
                     
                     // Добавляем информационное сообщение
                     addSseData('system', 'Подключение к Server-Sent Events установлено');
-                };
-                
-                sse.onmessage = (event) => {
-                    stats.sseEvents++;
-                    updateStats();
                     
-                    try {
-                        const data = JSON.parse(event.data);
-                        addSseData('event', `Новое событие: ${data.type || 'unknown'}`, data);
-                    } catch (e) {
-                        addSseData('event', `Новое сообщение: ${event.data}`);
-                    }
-                };
-                
-                sse.addEventListener('update', (event) => {
-                    stats.sseEvents++;
-                    updateStats();
-                    
-                    try {
-                        const data = JSON.parse(event.data);
-                        addSseData('update', `Обновление: ${data.message || 'Новые данные доступны'}`, data);
-                    } catch (e) {
-                        addSseData('update', `Обновление: ${event.data}`);
-                    }
-                });
-                
-                sse.onerror = () => {
-                    sseStatus.textContent = 'Ошибка SSE соединения';
-                    sseStatus.className = 'status disconnected';
-                    sseConnected = false;
-                    updateConnectionInfo();
-                    
-                    // В реальном приложении здесь должна быть логика переподключения
-                    setTimeout(() => {
-                        if (sse) {
-                            sse.close();
-                            sse = null;
-                        }
-                    }, 1000);
-                };
+                    // Запускаем имитацию получения событий
+                    startSimulatedSSE();
+                }, 1000);
                 
             } catch (error) {
                 sseStatus.textContent = 'Ошибка подключения к SSE';
                 sseStatus.className = 'status disconnected';
+                setButtonState('connectSse', true, 'Подключить SSE');
                 showNotification('Не удалось подключиться к Server-Sent Events', true);
-                
-                // Имитация получения событий, так как публичный SSE сервер может быть недоступен
-                simulateSSEEvents();
             }
         }
         
-        // Функция для имитации SSE событий (для демонстрации, когда сервер недоступен)
-        function simulateSSEEvents() {
-            sseConnected = true;
-            sseStatus.textContent = 'SSE подключены (имитация)';
-            sseStatus.className = 'status connected';
-            updateConnectionInfo();
-            showNotification('Server-Sent Events подключены (имитация)');
-            
-            addSseData('system', 'Подключение к Server-Sent Events установлено (имитация)');
-            
-            // Имитируем получение событий
+        // Функция для имитации SSE событий
+        function startSimulatedSSE() {
             const events = [
-                { type: 'new_post', message: 'Опубликован новый пост о веб-разработке' },
-                { type: 'user_joined', message: 'Новый пользователь присоединился к платформе' },
-                { type: 'system_update', message: 'Запланировано обновление системы' }
+                { type: 'new_post', message: 'Опубликован новый пост о веб-разработке', data: { id: 101, title: 'Новые возможности JavaScript' } },
+                { type: 'user_joined', message: 'Новый пользователь присоединился к платформе', data: { username: 'new_user', id: 42 } },
+                { type: 'system_update', message: 'Запланировано обновление системы', data: { time: '2023-12-01 03:00', duration: '2 часа' } },
+                { type: 'notification', message: 'У вас новое уведомление', data: { type: 'info', priority: 'low' } }
             ];
             
             let eventIndex = 0;
-            const eventInterval = setInterval(() => {
-                if (!sseConnected) {
-                    clearInterval(eventInterval);
+            
+            sseInterval = setInterval(() => {
+                if (!window.sseConnected) {
+                    clearInterval(sseInterval);
                     return;
                 }
                 
                 if (eventIndex < events.length) {
                     const event = events[eventIndex];
-                    addSseData('event', `Новое событие: ${event.type}`, event);
+                    addSseData('event', `Событие: ${event.type} - ${event.message}`, event.data);
                     stats.sseEvents++;
                     updateStats();
                     eventIndex++;
                 } else {
-                    clearInterval(eventInterval);
+                    // Начинаем заново
+                    eventIndex = 0;
                 }
-            }, 5000);
+            }, 4000);
         }
         
         // Функция для отключения от Server-Sent Events
         function disconnectSSE() {
-            if (sse) {
-                sse.close();
-                sse = null;
+            if (sseInterval) {
+                clearInterval(sseInterval);
+                sseInterval = null;
             }
-            sseConnected = false;
+            
+            window.sseConnected = false;
             sseStatus.textContent = 'Server-Sent Events не подключены';
             sseStatus.className = 'status disconnected';
+            
+            setButtonState('connectSse', true, 'Подключить SSE');
+            setButtonState('disconnectSse', false);
+            
             updateConnectionInfo();
             showNotification('Server-Sent Events отключены');
         }
@@ -848,7 +922,7 @@
             } else {
                 let details = '';
                 if (data) {
-                    details = `<pre style="font-size: 0.8rem; margin-top: 5px;">${JSON.stringify(data, null, 2)}</pre>`;
+                    details = `<pre style="font-size: 0.8rem; margin-top: 5px; background: #f5f5f5; padding: 5px; border-radius: 4px;">${JSON.stringify(data, null, 2)}</pre>`;
                 }
                 
                 itemDiv.innerHTML = `
@@ -873,6 +947,11 @@
         // Инициализация приложения
         updateConnectionInfo();
         updateStats();
+        
+        // Устанавливаем начальные состояния кнопок
+        setButtonState('disconnectWs', false);
+        setButtonState('sendMessage', false);
+        setButtonState('disconnectSse', false);
     </script>
 </body>
 </html>
