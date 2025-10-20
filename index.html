@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API, WebSockets и SSE Демо</title>
+    <style>
+        :root {
+            --primary-color: #3498db;
+            --secondary-color: #2ecc71;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --dark-color: #2c3e50;
+            --light-color: #ecf0f1;
+            --text-color: #333;
+            --border-radius: 8px;
+            --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            color: var(--dark-color);
+        }
+
+        .app-description {
+            font-size: 1.1rem;
+            color: #555;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .card {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .card h2 {
+            color: var(--dark-color);
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary-color);
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: var(--transition);
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background-color: var(--dark-color);
+            transform: translateY(-2px);
+        }
+
+        .btn-success {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+        }
+
+        .btn-warning {
+            background-color: var(--warning-color);
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .data-container {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            padding: 10px;
+            background-color: #f9f9f9;
+        }
+
+        .data-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: white;
+            border-radius: var(--border-radius);
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .data-item h3 {
+            margin-bottom: 5px;
+            color: var(--dark-color);
+        }
+
+        .data-item p {
+            margin: 3px 0;
+            font-size: 0.9rem;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 300px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+            padding: 10px;
+            background-color: #f9f9f9;
+            margin-bottom: 10px;
+        }
+
+        .message {
+            padding: 8px;
+            margin-bottom: 8px;
+            border-radius: var(--border-radius);
+            max-width: 80%;
+        }
+
+        .message.own {
+            background-color: var(--primary-color);
+            color: white;
+            margin-left: auto;
+        }
+
+        .message.other {
+            background-color: #e0e0e0;
+            color: var(--text-color);
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 10px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: var(--border-radius);
+        }
+
+        .status {
+            padding: 10px;
+            border-radius: var(--border-radius);
+            margin-bottom: 10px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .status.connected {
+            background-color: rgba(46, 204, 113, 0.2);
+            color: var(--secondary-color);
+            border: 1px solid var(--secondary-color);
+        }
+
+        .status.disconnected {
+            background-color: rgba(231, 76, 60, 0.2);
+            color: var(--danger-color);
+            border: 1px solid var(--danger-color);
+        }
+
+        .status.connecting {
+            background-color: rgba(243, 156, 18, 0.2);
+            color: var(--warning-color);
+            border: 1px solid var(--warning-color);
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 20px;
+            color: #777;
+            font-style: italic;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background-color: var(--secondary-color);
+            color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            transform: translateX(150%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background-color: var(--danger-color);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            color: white;
+        }
+
+        .user-badge {
+            display: inline-block;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            margin-left: 5px;
+        }
+
+        .timestamp {
+            font-size: 0.7rem;
+            color: #777;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>API, WebSockets и Server-Sent Events</h1>
+            <p class="app-description">Демонстрация работы с Fake API, WebSockets и Server-Sent Events</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Fake API и Fetch API -->
+            <div class="card">
+                <h2>Fake API и Fetch API</h2>
+                
+                <div class="controls">
+                    <button id="loadUsers" class="btn">Загрузить пользователей</button>
+                    <button id="loadPosts" class="btn">Загрузить посты</button>
+                    <button id="loadComments" class="btn">Загрузить комментарии</button>
+                    <button id="clearData" class="btn btn-danger">Очистить</button>
+                </div>
+                
+                <div class="status" id="apiStatus">
+                    Готов к работе с API
+                </div>
+                
+                <div id="apiData" class="data-container">
+                    <div class="empty-message">Данные не загружены</div>
+                </div>
+            </div>
+
+            <!-- WebSockets Чат -->
+            <div class="card">
+                <h2>WebSockets Чат</h2>
+                
+                <div class="status" id="wsStatus">
+                    WebSocket не подключен
+                </div>
+                
+                <div class="chat-container">
+                    <div id="chatMessages" class="chat-messages">
+                        <div class="empty-message">Сообщения отсутствуют</div>
+                    </div>
+                    
+                    <div class="chat-input">
+                        <input type="text" id="messageInput" placeholder="Введите сообщение...">
+                        <button id="sendMessage" class="btn">Отправить</button>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button id="connectWs" class="btn btn-success">Подключиться</button>
+                    <button id="disconnectWs" class="btn btn-danger">Отключиться</button>
+                    <button id="clearChat" class="btn">Очистить чат</button>
+                </div>
+            </div>
+
+            <!-- Server-Sent Events -->
+            <div class="card">
+                <h2>Server-Sent Events</h2>
+                
+                <div class="status" id="sseStatus">
+                    Server-Sent Events не подключены
+                </div>
+                
+                <div id="sseData" class="data-container">
+                    <div class="empty-message">Обновления не получены</div>
+                </div>
+                
+                <div class="controls">
+                    <button id="connectSse" class="btn btn-success">Подключить SSE</button>
+                    <button id="disconnectSse" class="btn btn-danger">Отключить SSE</button>
+                    <button id="clearSse" class="btn">Очистить</button>
+                </div>
+            </div>
+
+            <!-- Информация о соединениях -->
+            <div class="card">
+                <h2>Информация о соединениях</h2>
+                
+                <div class="data-container">
+                    <div class="data-item">
+                        <h3>Текущие соединения</h3>
+                        <p id="connectionInfo">Нет активных соединений</p>
+                    </div>
+                    
+                    <div class="data-item">
+                        <h3>Статистика</h3>
+                        <p>Получено сообщений через WebSocket: <span id="wsMessageCount">0</span></p>
+                        <p>Получено событий через SSE: <span id="sseEventCount">0</span></p>
+                        <p>Загружено записей через API: <span id="apiRecordCount">0</span></p>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button id="resetStats" class="btn">Сбросить статистику</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>Демонстрационное приложение &copy; 2023</p>
+        </footer>
+    </div>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        // ========== ОБЩИЕ ПЕРЕМЕННЫЕ И ФУНКЦИИ ==========
+        
+        // Элементы DOM
+        const notification = document.getElementById('notification');
+        const connectionInfo = document.getElementById('connectionInfo');
+        const wsMessageCount = document.getElementById('wsMessageCount');
+        const sseEventCount = document.getElementById('sseEventCount');
+        const apiRecordCount = document.getElementById('apiRecordCount');
+        const resetStatsBtn = document.getElementById('resetStats');
+        
+        // Статистика
+        let stats = {
+            wsMessages: 0,
+            sseEvents: 0,
+            apiRecords: 0
+        };
+        
+        // Функция для показа уведомлений
+        function showNotification(message, isError = false) {
+            notification.textContent = message;
+            notification.className = 'notification';
+            
+            if (isError) {
+                notification.classList.add('error');
+            }
+            
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+        
+        // Функция для обновления информации о соединениях
+        function updateConnectionInfo() {
+            const connections = [];
+            
+            if (wsConnected) connections.push('WebSocket');
+            if (sseConnected) connections.push('Server-Sent Events');
+            
+            connectionInfo.textContent = connections.length > 0 
+                ? connections.join(', ') 
+                : 'Нет активных соединений';
+        }
+        
+        // Функция для обновления статистики
+        function updateStats() {
+            wsMessageCount.textContent = stats.wsMessages;
+            sseEventCount.textContent = stats.sseEvents;
+            apiRecordCount.textContent = stats.apiRecords;
+        }
+        
+        // Сброс статистики
+        resetStatsBtn.addEventListener('click', () => {
+            stats = {
+                wsMessages: 0,
+                sseEvents: 0,
+                apiRecords: 0
+            };
+            updateStats();
+            showNotification('Статистика сброшена');
+        });
+        
+        // ========== FAKE API И FETCH API ==========
+        
+        const loadUsersBtn = document.getElementById('loadUsers');
+        const loadPostsBtn = document.getElementById('loadPosts');
+        const loadCommentsBtn = document.getElementById('loadComments');
+        const clearDataBtn = document.getElementById('clearData');
+        const apiStatus = document.getElementById('apiStatus');
+        const apiData = document.getElementById('apiData');
+        
+        // Базовый URL для JSONPlaceholder API
+        const API_BASE_URL = 'https://jsonplaceholder.typicode.com';
+        
+        // Функция для загрузки данных с API
+        async function fetchData(endpoint) {
+            try {
+                apiStatus.textContent = 'Загрузка данных...';
+                apiStatus.className = 'status connecting';
+                
+                const response = await fetch(`${API_BASE_URL}${endpoint}`);
+                
+                if (!response.ok) {
+                    throw new Error(`Ошибка HTTP: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                apiStatus.textContent = 'Данные успешно загружены';
+                apiStatus.className = 'status connected';
+                
+                return data;
+            } catch (error) {
+                apiStatus.textContent = `Ошибка загрузки: ${error.message}`;
+                apiStatus.className = 'status disconnected';
+                throw error;
+            }
+        }
+        
+        // Функция для отображения данных
+        function displayData(data, type) {
+            if (!data || data.length === 0) {
+                apiData.innerHTML = '<div class="empty-message">Данные не найдены</div>';
+                return;
+            }
+            
+            let html = '';
+            
+            // Ограничиваем количество отображаемых элементов для производительности
+            const displayData = data.slice(0, 10);
+            
+            displayData.forEach(item => {
+                if (type === 'users') {
+                    html += `
+                        <div class="data-item">
+                            <h3>${item.name}</h3>
+                            <p><strong>Email:</strong> ${item.email}</p>
+                            <p><strong>Телефон:</strong> ${item.phone}</p>
+                            <p><strong>Вебсайт:</strong> ${item.website}</p>
+                            <p><strong>Компания:</strong> ${item.company.name}</p>
+                        </div>
+                    `;
+                } else if (type === 'posts') {
+                    html += `
+                        <div class="data-item">
+                            <h3>${item.title}</h3>
+                            <p>${item.body}</p>
+                            <p><strong>Автор ID:</strong> ${item.userId}</p>
+                        </div>
+                    `;
+                } else if (type === 'comments') {
+                    html += `
+                        <div class="data-item">
+                            <h3>${item.name}</h3>
+                            <p><strong>Email:</strong> ${item.email}</p>
+                            <p>${item.body}</p>
+                            <p><strong>Пост ID:</strong> ${item.postId}</p>
+                        </div>
+                    `;
+                }
+            });
+            
+            apiData.innerHTML = html;
+            stats.apiRecords = displayData.length;
+            updateStats();
+        }
+        
+        // Обработчики событий для кнопок API
+        loadUsersBtn.addEventListener('click', async () => {
+            try {
+                const users = await fetchData('/users');
+                displayData(users, 'users');
+                showNotification('Пользователи успешно загружены');
+            } catch (error) {
+                showNotification('Ошибка загрузки пользователей', true);
+            }
+        });
+        
+        loadPostsBtn.addEventListener('click', async () => {
+            try {
+                const posts = await fetchData('/posts');
+                displayData(posts, 'posts');
+                showNotification('Посты успешно загружены');
+            } catch (error) {
+                showNotification('Ошибка загрузки постов', true);
+            }
+        });
+        
+        loadCommentsBtn.addEventListener('click', async () => {
+            try {
+                const comments = await fetchData('/comments');
+                displayData(comments, 'comments');
+                showNotification('Комментарии успешно загружены');
+            } catch (error) {
+                showNotification('Ошибка загрузки комментариев', true);
+            }
+        });
+        
+        clearDataBtn.addEventListener('click', () => {
+            apiData.innerHTML = '<div class="empty-message">Данные не загружены</div>';
+            apiStatus.textContent = 'Готов к работе с API';
+            apiStatus.className = 'status';
+            showNotification('Данные очищены');
+        });
+        
+        // ========== WEBSOCKETS ==========
+        
+        const connectWsBtn = document.getElementById('connectWs');
+        const disconnectWsBtn = document.getElementById('disconnectWs');
+        const clearChatBtn = document.getElementById('clearChat');
+        const wsStatus = document.getElementById('wsStatus');
+        const chatMessages = document.getElementById('chatMessages');
+        const messageInput = document.getElementById('messageInput');
+        const sendMessageBtn = document.getElementById('sendMessage');
+        
+        let ws = null;
+        let wsConnected = false;
+        let username = `User${Math.floor(Math.random() * 1000)}`;
+        
+        // Функция для подключения к WebSocket
+        function connectWebSocket() {
+            try {
+                // Используем публичный WebSocket сервер для демонстрации
+                ws = new WebSocket('wss://echo.websocket.org');
+                
+                wsStatus.textContent = 'Подключение к WebSocket...';
+                wsStatus.className = 'status connecting';
+                
+                ws.onopen = () => {
+                    wsConnected = true;
+                    wsStatus.textContent = 'WebSocket подключен';
+                    wsStatus.className = 'status connected';
+                    updateConnectionInfo();
+                    showNotification('WebSocket подключен');
+                    
+                    // Отправляем приветственное сообщение
+                    addMessage('system', 'Вы подключились к чату');
+                };
+                
+                ws.onmessage = (event) => {
+                    stats.wsMessages++;
+                    updateStats();
+                    
+                    // Имитируем получение сообщения от другого пользователя
+                    if (event.data !== messageInput.value) {
+                        addMessage('other', event.data);
+                    }
+                };
+                
+                ws.onclose = () => {
+                    wsConnected = false;
+                    wsStatus.textContent = 'WebSocket отключен';
+                    wsStatus.className = 'status disconnected';
+                    updateConnectionInfo();
+                    showNotification('WebSocket отключен', true);
+                };
+                
+                ws.onerror = (error) => {
+                    wsStatus.textContent = 'Ошибка WebSocket';
+                    wsStatus.className = 'status disconnected';
+                    showNotification('Ошибка WebSocket соединения', true);
+                };
+                
+            } catch (error) {
+                wsStatus.textContent = 'Ошибка подключения';
+                wsStatus.className = 'status disconnected';
+                showNotification('Не удалось подключиться к WebSocket', true);
+            }
+        }
+        
+        // Функция для отключения от WebSocket
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        // Функция для добавления сообщения в чат
+        function addMessage(type, text) {
+            if (chatMessages.querySelector('.empty-message')) {
+                chatMessages.innerHTML = '';
+            }
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString();
+            
+            if (type === 'system') {
+                messageDiv.innerHTML = `<em>${text}</em> <span class="timestamp">${timestamp}</span>`;
+                messageDiv.style.textAlign = 'center';
+                messageDiv.style.backgroundColor = 'transparent';
+                messageDiv.style.color = '#777';
+            } else {
+                const sender = type === 'own' ? username : 'Другой пользователь';
+                messageDiv.innerHTML = `
+                    <strong>${sender}:</strong> ${text}
+                    <div class="timestamp">${timestamp}</div>
+                `;
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Функция для отправки сообщения
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+            
+            if (ws && wsConnected) {
+                ws.send(message);
+                addMessage('own', message);
+                messageInput.value = '';
+            } else {
+                showNotification('WebSocket не подключен', true);
+            }
+        }
+        
+        // Обработчики событий для WebSocket
+        connectWsBtn.addEventListener('click', connectWebSocket);
+        disconnectWsBtn.addEventListener('click', disconnectWebSocket);
+        sendMessageBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        clearChatBtn.addEventListener('click', () => {
+            chatMessages.innerHTML = '<div class="empty-message">Сообщения отсутствуют</div>';
+            showNotification('Чат очищен');
+        });
+        
+        // ========== SERVER-SENT EVENTS ==========
+        
+        const connectSseBtn = document.getElementById('connectSse');
+        const disconnectSseBtn = document.getElementById('disconnectSse');
+        const clearSseBtn = document.getElementById('clearSse');
+        const sseStatus = document.getElementById('sseStatus');
+        const sseData = document.getElementById('sseData');
+        
+        let sse = null;
+        let sseConnected = false;
+        
+        // Функция для подключения к Server-Sent Events
+        function connectSSE() {
+            try {
+                // Используем демонстрационный SSE эндпоинт
+                // В реальном приложении здесь должен быть ваш серверный эндпоинт
+                sse = new EventSource('https://sse.example.com/events');
+                
+                sseStatus.textContent = 'Подключение к SSE...';
+                sseStatus.className = 'status connecting';
+                
+                sse.onopen = () => {
+                    sseConnected = true;
+                    sseStatus.textContent = 'SSE подключены';
+                    sseStatus.className = 'status connected';
+                    updateConnectionInfo();
+                    showNotification('Server-Sent Events подключены');
+                    
+                    // Добавляем информационное сообщение
+                    addSseData('system', 'Подключение к Server-Sent Events установлено');
+                };
+                
+                sse.onmessage = (event) => {
+                    stats.sseEvents++;
+                    updateStats();
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        addSseData('event', `Новое событие: ${data.type || 'unknown'}`, data);
+                    } catch (e) {
+                        addSseData('event', `Новое сообщение: ${event.data}`);
+                    }
+                };
+                
+                sse.addEventListener('update', (event) => {
+                    stats.sseEvents++;
+                    updateStats();
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        addSseData('update', `Обновление: ${data.message || 'Новые данные доступны'}`, data);
+                    } catch (e) {
+                        addSseData('update', `Обновление: ${event.data}`);
+                    }
+                });
+                
+                sse.onerror = () => {
+                    sseStatus.textContent = 'Ошибка SSE соединения';
+                    sseStatus.className = 'status disconnected';
+                    sseConnected = false;
+                    updateConnectionInfo();
+                    
+                    // В реальном приложении здесь должна быть логика переподключения
+                    setTimeout(() => {
+                        if (sse) {
+                            sse.close();
+                            sse = null;
+                        }
+                    }, 1000);
+                };
+                
+            } catch (error) {
+                sseStatus.textContent = 'Ошибка подключения к SSE';
+                sseStatus.className = 'status disconnected';
+                showNotification('Не удалось подключиться к Server-Sent Events', true);
+                
+                // Имитация получения событий, так как публичный SSE сервер может быть недоступен
+                simulateSSEEvents();
+            }
+        }
+        
+        // Функция для имитации SSE событий (для демонстрации, когда сервер недоступен)
+        function simulateSSEEvents() {
+            sseConnected = true;
+            sseStatus.textContent = 'SSE подключены (имитация)';
+            sseStatus.className = 'status connected';
+            updateConnectionInfo();
+            showNotification('Server-Sent Events подключены (имитация)');
+            
+            addSseData('system', 'Подключение к Server-Sent Events установлено (имитация)');
+            
+            // Имитируем получение событий
+            const events = [
+                { type: 'new_post', message: 'Опубликован новый пост о веб-разработке' },
+                { type: 'user_joined', message: 'Новый пользователь присоединился к платформе' },
+                { type: 'system_update', message: 'Запланировано обновление системы' }
+            ];
+            
+            let eventIndex = 0;
+            const eventInterval = setInterval(() => {
+                if (!sseConnected) {
+                    clearInterval(eventInterval);
+                    return;
+                }
+                
+                if (eventIndex < events.length) {
+                    const event = events[eventIndex];
+                    addSseData('event', `Новое событие: ${event.type}`, event);
+                    stats.sseEvents++;
+                    updateStats();
+                    eventIndex++;
+                } else {
+                    clearInterval(eventInterval);
+                }
+            }, 5000);
+        }
+        
+        // Функция для отключения от Server-Sent Events
+        function disconnectSSE() {
+            if (sse) {
+                sse.close();
+                sse = null;
+            }
+            sseConnected = false;
+            sseStatus.textContent = 'Server-Sent Events не подключены';
+            sseStatus.className = 'status disconnected';
+            updateConnectionInfo();
+            showNotification('Server-Sent Events отключены');
+        }
+        
+        // Функция для добавления данных SSE
+        function addSseData(type, text, data = null) {
+            if (sseData.querySelector('.empty-message')) {
+                sseData.innerHTML = '';
+            }
+            
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'data-item';
+            
+            const timestamp = new Date().toLocaleTimeString();
+            
+            if (type === 'system') {
+                itemDiv.innerHTML = `
+                    <p><em>${text}</em></p>
+                    <div class="timestamp">${timestamp}</div>
+                `;
+            } else {
+                let details = '';
+                if (data) {
+                    details = `<pre style="font-size: 0.8rem; margin-top: 5px;">${JSON.stringify(data, null, 2)}</pre>`;
+                }
+                
+                itemDiv.innerHTML = `
+                    <p>${text}</p>
+                    ${details}
+                    <div class="timestamp">${timestamp}</div>
+                `;
+            }
+            
+            sseData.appendChild(itemDiv);
+            sseData.scrollTop = sseData.scrollHeight;
+        }
+        
+        // Обработчики событий для SSE
+        connectSseBtn.addEventListener('click', connectSSE);
+        disconnectSseBtn.addEventListener('click', disconnectSSE);
+        clearSseBtn.addEventListener('click', () => {
+            sseData.innerHTML = '<div class="empty-message">Обновления не получены</div>';
+            showNotification('Данные SSE очищены');
+        });
+        
+        // Инициализация приложения
+        updateConnectionInfo();
+        updateStats();
+    </script>
+</body>
+</html>
